@@ -1,0 +1,43 @@
+<mujoco model="manipulador">
+
+    <option gravity="0 0 -9.81" timestep="0.002"/>
+
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="512"/>
+    </asset>
+
+    <worldbody>
+
+            <geom name="chao" type="plane" size="5 5 0.1" rgba="0.2 0.2 0.2 1"/>
+        
+            <light directional="true" diffuse=".8 .8 .8" specular=".2 .2 .2" pos="0 0 5" dir="0 0 -1"/> 
+
+            <body name = "base" pos = "0 0 0">
+                
+                <body name = "corpo" pos = "0 0 0.25">
+                    <geom name = "link1" type = "capsule" size = "0.05 0.25" rgba = "0.8 0.2 0.2 1" density = "1255"/>
+                    <joint name = "junta1" type = "hinge" pos = "0 0 -0.25" axis = "0 0 1" frictionloss = "50   "/>
+
+                    <body name = "link2" pos = "0 0 0.5">
+                        <geom name = "link2" type = "capsule" size = "0.05 0.25" rgba = "0.2 0.8 0.2 1" density = "1255"/>
+                        <joint name = "junta2" type = "hinge" pos = "0 0 -0.25" axis = "1 0 0" frictionloss = "50"/>
+
+                        <body name = "link3" pos = "0 0 0.5">
+                            <geom name = "link3" type = "capsule" size = "0.05 0.25" rgba = "0.2 0.2 0.8 1" density = "1255"/>
+                            <joint name = "junta3" type = "hinge" pos = "0 0 -0.25" axis = "1 0 0" frictionloss = "50"/>
+                            <body name = "extremidade" pos = "0 0 0.25">
+                                <geom name = "extremidade" type = "sphere" size = "0.05" rgba = "0.8 0.8 0.8 1" density = "0"/>
+                            </body>
+                        </body>
+                    </body>
+                </body>
+
+            </body>
+    </worldbody>
+
+    <actuator>
+        <position name="motor1" joint="junta1" kp = "1000" />
+        <position name="motor2" joint="junta2" kp = "10000"/>
+        <position name="motor3" joint="junta3" kp = "1000" />
+    </actuator>
+</mujoco>
