@@ -48,10 +48,8 @@ def referencia_senoidal(t):
 Kp = np.diag([300, 300, 300, 300, 300, 300])
 
 def CalcularKd(M):
-    Kd = np.zeros((6, 6))
-    for i in range(6):
-        Kd[i][i] = 2*np.sqrt(Kp[i][i]*M[i][i])
-    return Kd
+    m = Kp@M
+    return 2*np.diag([np.sqrt(m[i][i]) for i in range(6)])
 
 
 log_posicao_juntas = []

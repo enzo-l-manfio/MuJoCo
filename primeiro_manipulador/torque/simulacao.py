@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from time import perf_counter
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-print(script_dir)
-xml_path = os.path.join(script_dir, "manipulador_atuadores_torque.xml")
+diretorio_xml = os.path.dirname(os.path.dirname(script_dir))
+xml_path = os.path.join(diretorio_xml, "manipulador_atuadores_torque.xml")
 
 mj_model = mj.MjModel.from_xml_path(xml_path)
 mj_data = mj.MjData(mj_model)

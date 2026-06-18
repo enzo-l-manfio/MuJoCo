@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from time import perf_counter
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-print(script_dir)
-xml_path = os.path.join(script_dir, "manipulador_atuadores_torque.xml")
+diretorio_xml = os.path.dirname(script_dir)
+xml_path = os.path.join(diretorio_xml, "manipulador_atuadores_torque.xml")
 
 mj_model = mj.MjModel.from_xml_path(xml_path)
 mj_data = mj.MjData(mj_model)
@@ -23,7 +23,7 @@ mj.mj_kinematics(mj_model, mj_data)
 def referencia_step(t):
 
     theta = np.copy(pos_inicial)
-    if t < 2 :
+    if t >= 2 :
         theta[0] -= 0.4
         theta[2] += 0.5
 
@@ -36,23 +36,17 @@ def referencia_senoidal(t):
         theta[2] += 0.4*np.sin(3*np.pi * t)
     return theta
 
-Kp = np.diag([30, 30, 30])
-Kd = np.diag([0.15, 0.15, 0.15])
+Kp = np.diag([25, 25, 25])
+Kd = np.diag([0.325, 0.325, 0.325])
 
 
 erro_juntas_anterior = np.zeros(3)
 
-log_posicao_juntas = [pos_inicial]
+log_posicao_juntas = []
 
-n = 0
-
-start=0
 with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
 
     while mj_data.time <= 4.0:
-        end = perf_counter()
-        print(end-start)
-        start = perf_counter()
         
         mj.mj_kinematics(mj_model, mj_data)
         t = mj_data.time
@@ -69,10 +63,6 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         log_posicao_juntas.append(np.copy(mj_data.qpos[:3]))
         mujoco.mj_step(mj_model, mj_data)
         viewer.sync()
-        n+=1
-        if n >10 :
-            exit(1)
-    
 
 
 
