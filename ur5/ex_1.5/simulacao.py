@@ -53,6 +53,7 @@ def CalcularKd(M):
 
 
 log_posicao_juntas = []
+log_Kd = []
 erro_juntas_anterior = np.zeros(6)
 
 with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
@@ -70,6 +71,8 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
 
 
         Kd = CalcularKd(pin_data.M)
+        log_Kd.append(Kd)
+
         control_signal = Kp @ erro_juntas + Kd @ derivada_erro
 
         mj_data.ctrl[:6] = control_signal
@@ -82,13 +85,21 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
 intervalo = np.arange(0, mj_data.time, mj_model.opt.timestep)
 trajetoria_referencia = [referencia_step(ti) for ti in intervalo]
 
-figure, axs = plt.subplots(3, 2, figsize=(10, 8))
+figure_1, axs1 = plt.subplots(3, 2, figsize=(10, 8))
 for i in range(3):
     for j in range(2):
         junta = i + j*3
-        axs[i][j].plot(intervalo, [pos[junta] for pos in trajetoria_referencia])
-        axs[i][j].plot(intervalo, [pos[junta] for pos in log_posicao_juntas])
-        axs[i][j].set_title(f'Junta {junta + 1}')
-        axs[i][j].grid()
+        axs1[i][j].plot(intervalo, [pos[junta] for pos in trajetoria_referencia])
+        axs1[i][j].plot(intervalo, [pos[junta] for pos in log_posicao_juntas])
+        axs1[i][j].set_title(f'Junta {junta + 1}')
+        axs1[i][j].grid()
+
+figure_2, axs2 = plt.subplots(3, 2, figsize=(10, 8))
+for i in range(3):
+    for j in range(2):
+        junta = i + j*3
+        axs2[i][j].plot(intervalo, [kd[junta] for kd in log_Kd])
+        axs2[i][j].set_title(f'Junta {junta + 1}')
+        axs2[i][j].grid()
 
 plt.show()
