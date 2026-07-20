@@ -3,6 +3,7 @@ import mujoco as mj
 import os
 import mujoco.viewer
 import matplotlib.pyplot as plt
+import pinocchio as pin
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 xml_dir = os.path.dirname(script_dir)
@@ -11,7 +12,10 @@ xml_path = os.path.join(xml_dir, "manipulador_atuadores_torque.xml")
 mj_model = mj.MjModel.from_xml_path(xml_path)
 mj_data = mj.MjData(mj_model)
 
-mj_model.opt.timestep = 0.0001
+pin_model, *_ = pin.buildModelsFromMJCF(xml_path)
+pin_data = pin_model.createData()
+
+mj_model.opt.timestep = 0.001
 
 pos_inicial = np.array([0.0, np.pi/6, np.pi/6])
 
@@ -20,7 +24,7 @@ mj_data.qpos[:3] = np.copy(pos_inicial)
 mj.mj_kinematics(mj_model, mj_data)
 
 
-def referencia_step(t):
+def referencia_pos_step(t):
 
     theta = np.copy(pos_inicial)
     if t >= 2 :
@@ -29,18 +33,31 @@ def referencia_step(t):
 
     return theta
 
-def referencia_senoidal(t):
+def referencia_ac_step(t):
+    return np.zeros(3)
+
+def referencia_pos_senoidal(t):
     theta = np.copy(pos_inicial)
     if t <= 2:
         theta[0] += 0.2*np.sin(2*np.pi * t)
         theta[2] += 0.4*np.sin(3*np.pi * t)
     return theta
 
+def referencia_ac_senoidal(t):
+    if t >= 2:
+        ac = np.zeros(3)
+    else:
+        # utilizando y'' = -y para senos e cossenos
+        ac = referencia_pos_senoidal(t)
+        ac[0] = -((2*np.pi)**2) * (ac[0] - pos_inicial[0])
+        ac[2] = -((3*np.pi)**2) * (ac[2] - pos_inicial[2])
+    return ac
 
-referencia = referencia_step
+referencia_pos = referencia_pos_step
+referencia_ac = referencia_ac_step
 
 
-Kp = 10 * np.diag([1, 1, 1])
+Kp = 30 * np.diag([1, 1, 1])
 def CalcularKd(M):
     kd = [0.0, 0.0, 0.0]
     for i in range(3):
@@ -59,19 +76,23 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         mj.mj_kinematics(mj_model, mj_data)
         t = mj_data.time
 
-        posicao_juntas_referencia = referencia(t)
+        posicao_juntas_referencia = referencia_pos(t)
 
         erro_juntas = posicao_juntas_referencia - mj_data.qpos[:3]
         derivada_erro = (erro_juntas - erro_juntas_anterior) / mj_model.opt.timestep
 
-        mj.mj_crb(mj_model, mj_data)
-        matriz_inercia = np.zeros((mj_model.nv, mj_model.nv))
-        mujoco.mj_fullM(mj_model, matriz_inercia, mj_data.qM)
+        M = pin.crba(pin_model, pin_data, posicao_juntas_referencia)
+        M_diagonal = np.diag(M)
 
-        Kd = CalcularKd(matriz_inercia)
+        Kd = CalcularKd(M)
         log_kd.append(Kd)
 
-        control_signal = Kp @ erro_juntas + Kd @ derivada_erro
+
+        G = pin.computeGeneralizedGravity(pin_model, pin_data, posicao_juntas_referencia)
+
+        aceleracao_referencia = referencia_ac(t)
+
+        control_signal = Kp @ erro_juntas + Kd @ derivada_erro + 0.001*(G + M_diagonal@aceleracao_referencia)
         erro_juntas_anterior = erro_juntas
 
         mj_data.ctrl[:3] = control_signal
@@ -81,9 +102,11 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         viewer.sync()
     
 
-t = np.arange(0, mj_data.time - mj_model.opt.timestep, mj_model.opt.timestep)
 
-trajetoria_referencia = [referencia(ti) for ti in t]
+
+t = np.arange(0, mj_data.time, mj_model.opt.timestep)
+
+trajetoria_referencia = [referencia_pos(ti) for ti in t]
 figure, axs = plt.subplots(3, 2, figsize=(10, 8))
 
 for i in range(3):
@@ -103,6 +126,6 @@ for i in range(3):
     axs[i][1].legend('upper right')
     axs[i][1].grid()
 
-n_imagem = 4
-plt.savefig(f'Figure_{n_imagem}.pdf')
+n_imagem = 2
+plt.savefig(f'Kp_{Kp[0][0]}.pdf')
 plt.show()

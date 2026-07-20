@@ -5,6 +5,7 @@ import mujoco.viewer
 import matplotlib.pyplot as plt
 
 
+
 dir_atual = os.path.dirname(__file__)
 dir_anterior = os.path.dirname(dir_atual)
 
@@ -13,7 +14,7 @@ mj_model = mj.MjModel.from_xml_path(xml_path)
 mj_data = mj.MjData(mj_model)
 mj.mj_kinematics(mj_model, mj_data)
 
-def referencia_step(t):
+def referencia_pos_step(t):
     theta1 = 0.0
     theta3 = 0.0
     theta4 = 0.0
@@ -26,29 +27,43 @@ def referencia_step(t):
         theta5 = 0.5
     return np.array([theta1, theta2, theta3, theta4, theta5, theta6])
 
-def referencia_senoidal(t):
-    theta1 = 0.0
-    theta3 = 0.0
-    theta4 = 0.0
-    theta6 = 0.0
+def referencia_vel_step(t):
+    return np.zeros(6)
+
+def referencia_ac_step(t):
+    return np.zeros(6)
+
+def referencia_pos_senoidal(t):
+    theta = np.zeros(6)
     if t <= 4:
-        theta2 = 0.2*np.sin(2*np.pi*t)
-        theta5 = 0.4*np.sin(3*np.pi*t)
-        theta = np.array([theta1, theta2, theta3, theta4, theta5, theta6])
+        theta[1] = 0.2*np.sin(2*np.pi*t)
+        theta[4] = 0.4*np.sin(3*np.pi*t)
     else:
-        theta = referencia_senoidal(4)
+        theta = referencia_pos_senoidal(4)
 
     return theta
 
-referencia = referencia_senoidal
+def referencia_vel_senoidal(t):
+    vel = np.zeros(6)
+    if t <=4 :
+        vel[1] = 0.4*np.pi*np.sin(2*np.pi*t)
+        vel[4] = 1.2*np.pi*np.sin(3*np.pi*t)
+    return vel
+
+def referencia_ac_senoidal(t):
+    ac = np.zeros(6)
+    if t <= 4:
+        ac[1] = -((2*np.pi)**2) * 0.2*np.sin(2*np.pi*t)
+        ac[4] = -((3*np.pi)**2) * 0.4*np.sin(3*np.pi*t)
+    return ac
+
+
+referencia_pos = referencia_pos_senoidal
+referencia_vel = referencia_vel_senoidal
+referencia_ac = referencia_ac_senoidal
 
 Kp = np.diag([300, 300, 300, 300, 300, 300])
-
-def CalcularKd(M):
-    kd = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    for i in range(6):
-        kd[i] = np.sqrt(Kp[i][i]*M[i][i])
-    return 2*np.diag(kd)
+Kd = np.diag([20, 20, 20, 20, 20, 20])
 
 
 log_posicao_juntas = []
@@ -62,19 +77,16 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         mj.mj_kinematics(mj_model, mj_data)
         t = mj_data.time
 
-        posicao_juntas_referencia = referencia(t)
-        erro_juntas = posicao_juntas_referencia - mj_data.qpos[:6]
-        derivada_erro = (erro_juntas - erro_juntas_anterior) / mj_model.opt.timestep
-        erro_juntas_anterior = erro_juntas
+        erro_juntas = referencia_pos(t) - mj_data.qpos[:6]
+        erro_velocidade = referencia_vel(t) - mj_data.qvel[:6]
 
         mj.mj_crb(mj_model, mj_data)
-        matriz_inercia = np.zeros((mj_model.nv, mj_model.nv))
-        mujoco.mj_fullM(mj_model, matriz_inercia, mj_data.qM)
+        M = np.zeros((mj_model.nv, mj_model.nv))
+        mujoco.mj_fullM(mj_model, M, mj_data.qM)
 
-        Kd = CalcularKd(matriz_inercia)
-        log_Kd.append(Kd)
+        a = referencia_ac(t) + Kp@erro_juntas + Kd@erro_velocidade
 
-        control_signal = Kp @ erro_juntas + Kd @ derivada_erro
+        control_signal = M@a + mj_data.qfrc_bias
 
         mj_data.ctrl[:6] = control_signal
 
@@ -84,7 +96,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
 
 
 intervalo = np.arange(0, mj_data.time, mj_model.opt.timestep)
-trajetoria_referencia = [referencia(ti) for ti in intervalo]
+trajetoria_referencia = [referencia_pos(ti) for ti in intervalo]
 
 
 figure_1, axs1 = plt.subplots(3, 2, figsize=(10, 8))
@@ -98,14 +110,5 @@ for i in range(3):
 
 plt.savefig('Juntas.pdf')
 
-figure_2, axs2 = plt.subplots(3, 2, figsize=(10, 8))
-for i in range(3):
-    for j in range(2):
-        junta = i + j*3
-        axs2[i][j].plot(intervalo, [kd[junta][junta] for kd in log_Kd])
-        axs2[i][j].set_title(f'Junta {junta + 1}')
-        axs2[i][j].grid()
-
-plt.savefig('Kd.pdf')
 
 plt.show()

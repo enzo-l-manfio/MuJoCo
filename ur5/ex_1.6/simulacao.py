@@ -3,6 +3,8 @@ import numpy as np
 import mujoco as mj
 import mujoco.viewer
 import matplotlib.pyplot as plt
+import pinocchio as pin
+
 
 
 dir_atual = os.path.dirname(__file__)
@@ -12,6 +14,10 @@ xml_path = os.path.join(dir_anterior, "universal_robots_ur5e_modificado/scene.xm
 mj_model = mj.MjModel.from_xml_path(xml_path)
 mj_data = mj.MjData(mj_model)
 mj.mj_kinematics(mj_model, mj_data)
+
+xml_path_robot = os.path.join(dir_anterior, "universal_robots_ur5e_modificado/ur5e.xml")
+pin_model, *_ = pin.buildModelsFromMJCF(xml_path_robot)
+pin_data = pin_model.createData()
 
 def referencia_step(t):
     theta1 = 0.0
@@ -40,7 +46,7 @@ def referencia_senoidal(t):
 
     return theta
 
-referencia = referencia_senoidal
+referencia = referencia_step
 
 Kp = np.diag([300, 300, 300, 300, 300, 300])
 
@@ -60,6 +66,7 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
     while mj_data.time <= 8.0:
 
         mj.mj_kinematics(mj_model, mj_data)
+        pin.crba(pin_model, pin_data, mj_data.qpos[:6])
         t = mj_data.time
 
         posicao_juntas_referencia = referencia(t)
@@ -71,10 +78,14 @@ with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         matriz_inercia = np.zeros((mj_model.nv, mj_model.nv))
         mujoco.mj_fullM(mj_model, matriz_inercia, mj_data.qM)
 
+        G = pin.computeGeneralizedGravity(pin_model, pin_data, posicao_juntas_referencia)
+
+
         Kd = CalcularKd(matriz_inercia)
         log_Kd.append(Kd)
 
-        control_signal = Kp @ erro_juntas + Kd @ derivada_erro
+
+        control_signal = Kp @ erro_juntas + Kd @ derivada_erro + G
 
         mj_data.ctrl[:6] = control_signal
 
